@@ -1,0 +1,6 @@
+{
+  "name": "Bill's Cave",
+  "description": "A dark-mode translucent music player inspired by Musicolet with multi-queue playback, 5-band Cave EQ, local audio support, and customizable background wallpapers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
