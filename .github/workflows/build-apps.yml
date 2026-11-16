@@ -30,16 +30,17 @@ jobs:
 
       - name: Install dependencies & build web app
         run: |
-          npm install
+          npm install --legacy-peer-deps
           npm run build
 
       - name: Install Capacitor & create Android project
         run: |
-          npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
+          npm install --no-save --legacy-peer-deps @capacitor/core @capacitor/cli @capacitor/android
           npx cap add android
           mkdir -p android/app/src/main/res/values
           cp -r android-res/mipmap-* android/app/src/main/res/
           cp android-res/values/ic_launcher_background.xml android/app/src/main/res/values/
+          node -e "const fs=require('fs'),p='android/app/src/main/res/values/strings.xml';if(fs.existsSync(p)){let s=fs.readFileSync(p,'utf8');s=s.replace(/([^\\\\])'/g,\"\$1\\\\'\");fs.writeFileSync(p,s);}"
           npx cap sync android
 
       - name: Build Debug APK
@@ -67,21 +68,19 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies & build web app
+        shell: bash
         run: |
-          npm install
-          npm run build
+          npm install --legacy-peer-deps && npm run build
 
       - name: Prepare Windows icon & package EXE (Installer & Portable)
-        shell: pwsh
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: |
-          New-Item -ItemType Directory -Force -Path build | Out-Null
-          if (!(Test-Path "build/icon.ico") -and (Test-Path "public/favicon.ico")) {
-            Copy-Item "public/favicon.ico" "build/icon.ico"
-          }
-          if (!(Test-Path "build/icon.png") -and (Test-Path "public/pwa-512x512.png")) {
-            Copy-Item "public/pwa-512x512.png" "build/icon.png"
-          }
-          npm install --no-save electron electron-builder
+          mkdir -p build
+          [ -f build/icon.ico ] || cp public/favicon.ico build/icon.ico
+          [ -f build/icon.png ] || cp public/pwa-512x512.png build/icon.png
+          npm install --no-save --legacy-peer-deps electron electron-builder
           npx electron-builder --config electron-builder.yml --win --publish never
 
       - name: Upload Windows EXE artifacts
