@@ -1,26 +1,31 @@
+import coverMidnightEchoes from '../assets/images/cover_midnight_echoes_1794801312996.jpg';
+import coverSubterraneanDrift from '../assets/images/cover_subterranean_drift_1794801313113.jpg';
+import wallpaperListeningRoom from '../assets/images/wallpaper_listening_room_1794801312314.jpg';
+import wallpaperObsidianCave from '../assets/images/wallpaper_obsidian_cave_1794801311237.jpg';
+import wallpaperRainySkyline from '../assets/images/wallpaper_rainy_skyline_1794801311983.jpg';
 import { Playlist, QueueSlot, Track, WallpaperPreset } from '../types/music';
 
-export const COVER_MIDNIGHT_ECHOES = '/src/assets/images/cover_midnight_echoes_1794801312996.jpg';
-export const COVER_SUBTERRANEAN_DRIFT = '/src/assets/images/cover_subterranean_drift_1794801313113.jpg';
+export const COVER_MIDNIGHT_ECHOES = coverMidnightEchoes;
+export const COVER_SUBTERRANEAN_DRIFT = coverSubterraneanDrift;
 
 export const INITIAL_WALLPAPERS: WallpaperPreset[] = [
   {
     id: 'obsidian-cave',
     name: 'Obsidian Cave',
     subtitle: 'Lantern & underground lake',
-    url: '/src/assets/images/wallpaper_obsidian_cave_1794801311237.jpg',
+    url: wallpaperObsidianCave,
   },
   {
     id: 'twilight-valley',
     name: 'Twilight Valley',
     subtitle: 'Misty dusk ridge view',
-    url: '/src/assets/images/wallpaper_rainy_skyline_1794801311983.jpg',
+    url: wallpaperRainySkyline,
   },
   {
     id: 'listening-room',
     name: 'Listening Room',
     subtitle: 'Warm tungsten walnut studio',
-    url: '/src/assets/images/wallpaper_listening_room_1794801312314.jpg',
+    url: wallpaperListeningRoom,
   },
   {
     id: 'mystery-living-room',

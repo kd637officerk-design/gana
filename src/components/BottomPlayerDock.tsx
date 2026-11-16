@@ -11,6 +11,7 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
+  Square,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -28,6 +29,7 @@ interface BottomPlayerDockProps {
   zenMode: boolean;
   onToggleZenMode: () => void;
   onTogglePlay: () => void;
+  onStop: () => void;
   onPrev: () => void;
   onNext: () => void;
   onSeek: (seconds: number) => void;
@@ -50,6 +52,7 @@ export const BottomPlayerDock: React.FC<BottomPlayerDockProps> = ({
   zenMode,
   onToggleZenMode,
   onTogglePlay,
+  onStop,
   onPrev,
   onNext,
   onSeek,
@@ -203,6 +206,17 @@ export const BottomPlayerDock: React.FC<BottomPlayerDockProps> = ({
             ) : (
               <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={onStop}
+            disabled={!currentTrack || (!isPlaying && currentTime === 0)}
+            aria-label="Stop playback"
+            title="Stop"
+            className="w-7 h-7 flex items-center justify-center rounded-full text-zinc-300 hover:text-amber-300 hover:bg-white/10 disabled:opacity-30 transition-colors"
+          >
+            <Square className="w-3 h-3 fill-current" />
           </button>
 
           <button

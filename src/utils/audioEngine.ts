@@ -2,6 +2,10 @@ import { SynthProfile, Track } from '../types/music';
 
 const EQ_BAND_FREQS = [60, 230, 910, 3600, 14000];
 
+// Tiny 1-second silent PCM WAV to anchor Android & Windows OS Media Notifications during synth playback
+const SILENT_WAV_DATA_URI =
+  'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+
 class CaveAudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -13,6 +17,7 @@ class CaveAudioEngine {
 
   private htmlAudio: HTMLAudioElement | null = null;
   private mediaSource: MediaElementAudioSourceNode | null = null;
+  private mediaSessionAudio: HTMLAudioElement | null = null;
 
   private activeTrack: Track | null = null;
   private isPlaying = false;
@@ -21,7 +26,6 @@ class CaveAudioEngine {
   private caveReverb = false;
   private eqBands: [number, number, number, number, number] = [0, 0, 0, 0, 0];
 
-  // Synth scheduler state
   private synthTimer: number | null = null;
   private progressTimer: number | null = null;
   private synthStep = 0;
@@ -37,9 +41,26 @@ class CaveAudioEngine {
     this.onEndedCb = onEnded;
   }
 
+  private startMediaSessionAnchor() {
+    if (!this.mediaSessionAudio) {
+      this.mediaSessionAudio = new Audio(SILENT_WAV_DATA_URI);
+      this.mediaSessionAudio.loop = true;
+      this.mediaSessionAudio.volume = 0.01;
+    }
+    void this.mediaSessionAudio.play().catch(() => {});
+  }
+
+  private pauseMediaSessionAnchor() {
+    if (this.mediaSessionAudio) {
+      this.mediaSessionAudio.pause();
+    }
+  }
+
   private ensureContext() {
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new AudioCtx();
 
       this.masterGain = this.ctx.createGain();
@@ -49,22 +70,20 @@ class CaveAudioEngine {
       this.analyser.fftSize = 64;
       this.analyser.smoothingTimeConstant = 0.82;
 
-      // 5-band peaking / shelving EQ
       this.eqFilters = EQ_BAND_FREQS.map((freq, idx) => {
         const filter = this.ctx!.createBiquadFilter();
-        filter.type = idx === 0 ? 'lowshelf' : idx === EQ_BAND_FREQS.length - 1 ? 'highshelf' : 'peaking';
+        filter.type =
+          idx === 0 ? 'lowshelf' : idx === EQ_BAND_FREQS.length - 1 ? 'highshelf' : 'peaking';
         filter.frequency.value = freq;
         filter.Q.value = 1.1;
         filter.gain.value = this.eqBands[idx];
         return filter;
       });
 
-      // Chain EQ filters
       for (let i = 0; i < this.eqFilters.length - 1; i++) {
         this.eqFilters[i].connect(this.eqFilters[i + 1]);
       }
 
-      // Dry / Wet Cave Reverb routing
       this.dryGain = this.ctx.createGain();
       this.dryGain.gain.value = this.caveReverb ? 0.72 : 1.0;
 
@@ -115,8 +134,10 @@ class CaveAudioEngine {
     this.isPlaying = true;
 
     if (track.sourceType === 'local' && track.audioUrl) {
+      this.pauseMediaSessionAnchor();
       await this.startLocalAudio(track.audioUrl, startSeconds);
     } else {
+      this.startMediaSessionAnchor();
       this.startSynthAudio(track, startSeconds);
     }
   }
@@ -151,7 +172,7 @@ class CaveAudioEngine {
     try {
       await this.htmlAudio.play();
     } catch {
-      // Fallback if autoplay blocked before user gesture
+      // ignore autoplay blocks before user gesture
     }
   }
 
@@ -169,7 +190,6 @@ class CaveAudioEngine {
     const stepMs = Math.round((60 / profile.bpm) * 1000);
     this.synthStep = Math.floor(startSeconds / (stepMs / 1000));
 
-    // Trigger immediate warm note
     this.triggerSynthStep(profile);
 
     this.synthTimer = window.setInterval(() => {
@@ -239,23 +259,31 @@ class CaveAudioEngine {
     const now = this.ctx.currentTime;
     const step = this.synthStep;
 
-    // Warm chord every 4 beats
     if (step % 4 === 0) {
       const chordRootShift = [0, -2, 3, -5][Math.floor(step / 4) % 4];
       const baseFreq = profile.rootFreq * Math.pow(2, chordRootShift / 12);
 
-      // Sub bass voice
       this.playTone(baseFreq * 0.5, 'sine', now, 3.6, 0.18, 280);
 
-      // Warm electric pad chord (root, minor/major 3rd, 5th, 7th)
-      const chordTones = [0, profile.scaleIntervals[1], profile.scaleIntervals[2], profile.scaleIntervals[3]];
+      const chordTones = [
+        0,
+        profile.scaleIntervals[1],
+        profile.scaleIntervals[2],
+        profile.scaleIntervals[3],
+      ];
       chordTones.forEach((semi, idx) => {
         const freq = baseFreq * Math.pow(2, semi / 12);
-        this.playTone(freq, idx === 0 ? 'triangle' : 'sine', now + idx * 0.04, 3.4, 0.075, profile.padWarmth);
+        this.playTone(
+          freq,
+          idx === 0 ? 'triangle' : 'sine',
+          now + idx * 0.04,
+          3.4,
+          0.075,
+          profile.padWarmth
+        );
       });
     }
 
-    // Gentle arpeggiated bell / Rhodes pluck
     if (step % 2 === 0 || step % 3 === 0) {
       const interval = profile.scaleIntervals[step % profile.scaleIntervals.length];
       const octaveBoost = step % 5 === 0 ? 2 : 1;
@@ -324,11 +352,24 @@ class CaveAudioEngine {
 
   public pause() {
     this.isPlaying = false;
+    this.pauseMediaSessionAnchor();
     if (this.activeTrack?.sourceType === 'local' && this.htmlAudio) {
       this.htmlAudio.pause();
     } else {
       this.stopCurrentSource();
     }
+  }
+
+  public stop() {
+    this.isPlaying = false;
+    this.currentTime = 0;
+    this.pauseMediaSessionAnchor();
+    this.stopCurrentSource();
+    if (this.htmlAudio) {
+      this.htmlAudio.pause();
+      this.htmlAudio.currentTime = 0;
+    }
+    this.onTimeUpdateCb?.(0);
   }
 
   public async resume() {
@@ -342,6 +383,7 @@ class CaveAudioEngine {
         // ignore
       }
     } else {
+      this.startMediaSessionAnchor();
       this.startSynthAudio(this.activeTrack, this.currentTime);
     }
   }

@@ -1,0 +1,9 @@
+{
+  "appId": "com.billscave.player",
+  "appName": "Bill's Cave",
+  "webDir": "dist",
+  "backgroundColor": "#08090c",
+  "android": {
+    "allowMixedContent": true
+  }
+}

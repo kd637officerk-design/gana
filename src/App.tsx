@@ -239,6 +239,145 @@ export default function App() {
     }
   }, [currentTime, currentTrack, isPlaying]);
 
+  const handleStop = useCallback(() => {
+    audioEngine.stop();
+    setIsPlaying(false);
+    setCurrentTime(0);
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = 'none';
+    }
+  }, []);
+
+  // Sync Android Media Notification & Windows Media Transport Controls (SMTC)
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    let cancelled = false;
+
+    const updateMetadata = async () => {
+      if (!currentTrack) {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+        return;
+      }
+
+      let resolvedArt = currentTrack.artwork;
+      if (resolvedArt.startsWith('blob:')) {
+        try {
+          const blob = await fetch(resolvedArt).then((r) => r.blob());
+          resolvedArt = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === 'string' ? reader.result : currentTrack.artwork);
+            reader.onerror = () => resolve(currentTrack.artwork);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          resolvedArt = `${window.location.origin}/pwa-512x512.png`;
+        }
+      } else if (
+        !resolvedArt.startsWith('http') &&
+        !resolvedArt.startsWith('data:')
+      ) {
+        resolvedArt = `${window.location.origin}${resolvedArt.startsWith('/') ? '' : '/'}${resolvedArt}`;
+      }
+
+      if (cancelled) return;
+
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        album: currentTrack.album,
+        artwork: [
+          { src: resolvedArt, sizes: '512x512', type: 'image/jpeg' },
+          { src: `${window.location.origin}/pwa-512x512.png`, sizes: '512x512', type: 'image/png' },
+        ],
+      });
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    };
+
+    void updateMetadata();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTrack, isPlaying]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return;
+
+    const safeSetHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null
+    ) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+        // ignore unsupported media session actions on older browsers
+      }
+    };
+
+    safeSetHandler('play', () => {
+      if (!isPlaying && currentTrack) handleTogglePlay();
+    });
+    safeSetHandler('pause', () => {
+      if (isPlaying) handleTogglePlay();
+    });
+    safeSetHandler('stop', () => {
+      handleStop();
+    });
+    safeSetHandler('previoustrack', () => {
+      handlePrev();
+    });
+    safeSetHandler('nexttrack', () => {
+      handleNext();
+    });
+    safeSetHandler('seekbackward', (details) => {
+      const offset = details.seekOffset ?? 10;
+      const nextPos = Math.max(0, currentTime - offset);
+      audioEngine.seek(nextPos);
+      setCurrentTime(nextPos);
+    });
+    safeSetHandler('seekforward', (details) => {
+      const offset = details.seekOffset ?? 10;
+      const maxDur = currentTrack?.duration ?? currentTime + offset;
+      const nextPos = Math.min(maxDur, currentTime + offset);
+      audioEngine.seek(nextPos);
+      setCurrentTime(nextPos);
+    });
+    safeSetHandler('seekto', (details) => {
+      if (typeof details.seekTime === 'number') {
+        audioEngine.seek(details.seekTime);
+        setCurrentTime(details.seekTime);
+      }
+    });
+
+    return () => {
+      safeSetHandler('play', null);
+      safeSetHandler('pause', null);
+      safeSetHandler('stop', null);
+      safeSetHandler('previoustrack', null);
+      safeSetHandler('nexttrack', null);
+      safeSetHandler('seekbackward', null);
+      safeSetHandler('seekforward', null);
+      safeSetHandler('seekto', null);
+    };
+  }, [currentTime, currentTrack, handleNext, handlePrev, handleStop, handleTogglePlay, isPlaying]);
+
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentTrack) return;
+    try {
+      if (typeof navigator.mediaSession.setPositionState === 'function') {
+        navigator.mediaSession.setPositionState({
+          duration: Math.max(1, currentTrack.duration),
+          playbackRate: 1,
+          position: Math.min(currentTime, Math.max(1, currentTrack.duration)),
+        });
+      }
+    } catch {
+      // ignore invalid position state during track switch
+    }
+  }, [currentTime, currentTrack]);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -641,6 +780,7 @@ export default function App() {
             zenMode={zenMode}
             onToggleZenMode={() => setZenMode((prev) => !prev)}
             onTogglePlay={handleTogglePlay}
+            onStop={handleStop}
             onPrev={handlePrev}
             onNext={handleNext}
             onSeek={(secs) => {

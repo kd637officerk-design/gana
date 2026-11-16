@@ -1,0 +1,28 @@
+appId: com.billscave.player
+productName: "Bill's Cave"
+directories:
+  output: release-pc
+  buildResources: build
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+extraMetadata:
+  main: electron/main.cjs
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Bill's Cave"
+portable:
+  artifactName: "Bills-Cave-Windows-Portable.exe"
