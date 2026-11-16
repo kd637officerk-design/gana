@@ -37,7 +37,6 @@ jobs:
           mkdir -p android/app/src/main/res/values
           cp -r android-res/mipmap-* android/app/src/main/res/
           cp android-res/values/ic_launcher_background.xml android/app/src/main/res/values/
-          node -e "const fs=require('fs'),p='android/app/src/main/res/values/strings.xml';if(fs.existsSync(p)){let s=fs.readFileSync(p,'utf8');s=s.replace(/([^\\\\])'/g,\"\$1\\\\'\");fs.writeFileSync(p,s);}"
           npx cap sync android
 
       - name: Build Debug APK
